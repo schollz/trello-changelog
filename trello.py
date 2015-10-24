@@ -1,7 +1,9 @@
 import json
 import datetime
+import sys
+import random
 
-a =json.load(open('trello.dat','rb'))
+a =json.load(open(sys.argv[1],'rb'))
 def find_between( s, first, last ):
   try:
     start = s.index( first ) + len( first )
@@ -33,37 +35,54 @@ for i in a['cards']:
   cards.append(card)
 
 
-version = {}
+availableColors = []
+with open('colors.txt','r') as f:
+  for line in f:
+    availableColors.append(line.decode('utf-8').strip())
+
+random.shuffle(availableColors)
+
+changelog = {}
+dates = {}
+colors = {}
 latestDate = None
 for card in cards:
   if 'Done' in card['list']:
-    versionNum = float(find_between(card['list'],'Version',')').strip())
-    newAddition = '*   [:feature:`Feature`]: ' + card['name']
-    for l in card['labels']:
-        newAddition =  newAddition + '  (:' + l.lower().split()[0].replace('-','') + ':`' + l + '`)'    
-    newAddition += '\n'
-    if versionNum in version:
-      version[versionNum] = version[versionNum] + newAddition
-    else:
-      version[versionNum] = newAddition
-    cardDate = datetime.datetime.strptime(card['date'], '%Y-%m-%d')
-    if latestDate is None:
-      latestDate = cardDate
-    else:
-      if latestDate < cardDate:
-        latestDate = cardDate
+    version = card['list']
+    if version not in changelog:
+      changelog[version] = {}
+      changelog[version]['date'] = card['date']
+      changelog[version]['features'] = []
+      dates[changelog[version]['date']] = version
 
-currentVersion = max(version.keys())
-currentDate = datetime.datetime.strftime(latestDate,'%Y-%m-%d')
-for card in cards:
-  if 'Done' not in card['list']:
-    newAddition = '*   [:' + card['list'].lower().split()[0].replace('-','') + ':`' + card['list'] + '`]: '
-    newAddition = newAddition + card['name'] 
-    for l in card['labels']:
-      newAddition =  newAddition + '  (:' + l.lower().split()[0].replace('-','') + ':`' + l + '`)'
-    version[currentVersion] = version[currentVersion] + newAddition + "\n"
+    dat = {'feature':card['name'], 'categories': card['labels']}
+    changelog[version]['features'].append(dat)
+    for category in card['labels']:
+      if category not in colors:
+        colors[category] = availableColors.pop()
 
-for i in sorted(version,reverse=True):
-  print ':version:`Version ' + str(i) + ' (' + currentDate + ')`\n'
-  print version[i]
-  
+
+versionOrdering = []
+for k in sorted(dates.keys(),reverse=True):
+  versionOrdering.append(dates[k])
+
+
+
+changelist = {}
+for version in versionOrdering:
+  heading = changelog[version]['date'] + ' ' + version.replace('Done ','').replace('(','').replace(')','')
+  changelist[heading] = []
+  for feature in changelog[version]['features']:
+    line = '- '
+    for category in feature['categories']:
+      line += '<span style="color:' + colors[category] + '; font-family: Courier New;">[' + category + '] </span>'
+    line += '<span style="font-family: Courier New;">' + feature['feature'] + '</span>'
+    changelist[heading].append(line)
+
+print "\n\n\n\n\n\n\n# Changelog \n"
+for version in versionOrdering:
+  heading = changelog[version]['date'] + ' ' + version.replace('Done ','').replace('(','').replace(')','')
+  print "\n\n## " + heading
+  for line in sorted(changelist[heading]):
+    print line
+  print "\n"
